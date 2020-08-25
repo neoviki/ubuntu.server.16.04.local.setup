@@ -1,0 +1,9 @@
+if [ -z "$1" ]; then
+    echo "[ usage ] ./unexpose_port <port_number>"
+    exit 1
+fi
+
+PORT_NUMBER=$1
+
+ps -ef | grep "expose_port" | grep -v "grep" | awk '{print $2}' | xargs -I{} kill -9 {}
+ps -ef | grep "ssh" | grep "StrictHostKeyChecking" | grep ":localhost:$PORT_NUMBER" | grep -v "grep" | awk '{print $2}' | xargs -I{} kill -9 {}

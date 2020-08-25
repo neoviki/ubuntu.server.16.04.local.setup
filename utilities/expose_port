@@ -1,0 +1,276 @@
+#!/bin/bash
+
+: '
+	Utility to Expose Local Device Port to Internet
+	
+	Author	: 	Viki ( a ) Vignesh Natarajan
+			:	vikiworks.io
+'
+
+REMOTE_IP=""
+REMOTE_UNAME=""
+REMOTE_PASS=''
+REMOTE_SSH_PORT=""
+REMOTE_DETAILS=""
+
+THIS_USER=$USER
+
+LOCAL_PORT=""
+
+
+
+echo
+echo "  QUICK_USAGE	 :  ./expose_port <local_port to expose> root@<public_server>:<remote_ssh_port> "
+echo
+echo "  EXAMPLE        :  ./expose_port 80 root@example.com:22"
+echo
+
+
+
+
+if [ "$1" = "-bg" ]; then
+    RUN_BACKGROUND="true"
+fi
+
+if [ "$2" = "-bg" ]; then
+    RUN_BACKGROUND="true"
+fi
+
+if [ "$3" = "-bg" ]; then
+    RUN_BACKGROUND="true"
+fi
+
+if [ "$4" = "-bg" ]; then
+    RUN_BACKGROUND="true"
+fi
+
+if [ "$5" = "-bg" ]; then
+    RUN_BACKGROUND="true"
+fi
+
+
+#Single Line Usage:
+#./expose_port <local_port_to_expose> <username>@<remote_ip> <remote_ssh_port>
+#./expose_port 80 testuser@2.3.4.5 
+
+# Prerequisite check
+
+which sshpass > /dev/null 
+if [ $? -ne 0 ]; then
+	echo " [ error ] ( sshpass ) is not installed in this system, Install and try again"
+    exit 1
+fi
+
+which ssh > /dev/null 
+if [ $? -ne 0 ]; then
+	echo " [ error ] ( ssh ) is not installed in this system, Install and try again"
+    exit 1
+fi
+
+RS0=" Enter local port to expose                 : "
+RS1=" Enter jump server IP ADDRESS / DOMAIN NAME : " 
+RS2=" Enter remote server username               : "
+RS3=" Enter remote server password               : "
+RS4=" Enter remote server ssh port               : "
+KS1=" Remote Host Details                        :"
+HLP=" Press ( ctrl + c ) to exit application      "
+
+if [ $# -lt 1 ]; then 
+	echo
+	echo "$HLP"
+	echo
+	echo
+
+	while [ 1 ]
+	do
+    	if [[ ! -z $LOCAL_PORT ]]; then
+        	break
+    	fi
+    	read -p "$RS0" LOCAL_PORT  </dev/tty
+	done
+
+
+
+	while [ 1 ]
+	do
+    	if [[ ! -z $REMOTE_IP ]]; then
+        	break
+    	fi
+    	read -p "$RS1" REMOTE_IP     </dev/tty
+	done
+
+	while [ 1 ]
+	do
+    	if [[ ! -z $REMOTE_UNAME ]]; then
+        	break
+    	fi
+    	read -p "$RS2" REMOTE_UNAME  </dev/tty
+	done
+   
+ 	while [ 1 ]
+	do
+    	if [[ ! -z $REMOTE_SSH_PORT ]]; then
+        	break
+    	fi
+    	read -p "$RS4" REMOTE_SSH_PORT  </dev/tty
+	done
+   
+
+
+    REMOTE_DETAILS="${REMOTE_UNAME}@${REMOTE_IP}:$REMOTE_SSH_PORT"
+
+else
+    echo 	
+    if [ ! -z "$1" ]; then
+        LOCAL_PORT=$1
+    fi	
+
+	if [ ! -z "$2" ]; then
+    	REMOTE_DETAILS=$2
+	fi
+	
+    #Extract value after ":" -> Server Port
+    REMOTE_SSH_PORT=`echo "$REMOTE_DETAILS" | awk -F: '{print $2}'`
+ 
+    if [ -z $REMOTE_SSH_PORT ]; then
+        REMOTE_SSH_PORT=22
+    fi
+
+    #Extract value before ":" -> REMOTE_UNAME @ REMOTE_IP
+    VALUE_BEFORE=`echo "$REMOTE_DETAILS" | awk -F: '{print $1}'`  
+    
+    #Extract string before @ -> User Name
+    REMOTE_UNAME=`echo $VALUE_BEFORE | awk -F@ '{print $1}'`
+
+    if [ -z $REMOTE_UNAME ]; then
+        echo " Error: Invalid Server Details"
+        exit 1
+    fi
+
+
+    #Extract string after @ -> Server IP
+    REMOTE_IP=`echo $VALUE_BEFORE| awk -F@ '{print $2}'`
+    
+    if [ -z $REMOTE_IP ]; then
+        echo " Error: Invalid Server Details"
+        exit 1
+    fi
+
+    #Reset Remote Details 
+    REMOTE_DETAILS="${REMOTE_UNAME}@${REMOTE_IP}:${REMOTE_SSH_PORT}"   
+
+fi
+
+echo
+echo "$KS1 $REMOTE_DETAILS"
+
+while [ 1 ]
+do
+	if [[ ! -z $REMOTE_PASS ]]; then
+		break
+	fi
+	read -sp "$RS3" REMOTE_PASS
+done
+
+echo 
+echo 
+
+#Users in the internet can use this port along with $REMOTE_IP to communicate with THIS machine
+INCOMING_PORT=10000
+PORT_CHECK_LIMIT=10006
+
+ERROR_LOG="/tmp/expose_port_error.log"
+
+while [ $INCOMING_PORT -lt $PORT_CHECK_LIMIT ]
+do
+    #printf "."
+    rm $ERROR_LOG 2> /dev/null
+    
+    if [ -f "$ERROR_LOG" ]; then
+        echo
+        echo
+        echo "[ error  ] Unable to access file ( $ERROR_LOG ) - permission error"
+        echo "[ error  ] Manually remove file ( $ERROR_LOG ) and try again"
+        exit 1
+    fi
+
+    touch $ERROR_LOG
+   
+	sshpass -p $REMOTE_PASS  ssh -o StrictHostKeyChecking=no -f -N  -R $INCOMING_PORT:localhost:$LOCAL_PORT -p $REMOTE_SSH_PORT ${REMOTE_UNAME}@${REMOTE_IP} 2> $ERROR_LOG
+	
+    #Check Command Exit Status
+    if [ $? -ne 0 ]; then
+        echo
+        echo
+        echo "[ status ] Execution Error : "
+        echo
+        printf "\t( execution failure ) ssh -o StrictHostKeyChecking=no -f -N  -R $INCOMING_PORT:localhost:$LOCAL_PORT -p $REMOTE_SSH_PORT ${REMOTE_UNAME}@${REMOTE_IP} 2> $ERROR_LOG"
+        echo
+        echo
+    	rm $ERROR_LOG 2> /dev/null
+        exit 1
+    fi  
+
+    sleep 1
+
+    #Check Port Expose Status  
+    if [ -f "$ERROR_LOG" ]; then
+        #The above commane will throw "Warning error if the port is already used by other servers"
+        grep -i "warning" $ERROR_LOG | grep "$INCOMING_PORT" > /dev/null
+
+        if [ $? -eq 0 ]; then
+            printf "."
+            #echo
+            #echo
+            #echo "Unable to expose local port ($LOCAL_PORT) with remote port ($INCOMING_PORT)"
+        else
+            break
+        fi
+
+    fi
+
+
+    INCOMING_PORT=$[$INCOMING_PORT+1]
+    sleep 2
+done
+
+echo ""
+echo ""
+echo "####################################################################"
+echo ""
+echo ""
+echo " You can access port ( $LOCAL_PORT ) of this device using the following details, "
+echo ""
+echo ""
+echo " USER NAME ( optional )     :  $THIS_USER"
+echo " DOMAIN NAME                :  $REMOTE_IP"
+echo " PORT                       :  $INCOMING_PORT "
+echo ""
+echo ""
+echo "####################################################################"
+echo ""
+echo ""
+
+rm $ERROR_LOG 2> /dev/null
+
+if [ "$RUN_BACKGROUND" = "true" ]; then
+    exit 0
+fi
+
+signal_handler () {
+    trap SIGINT   
+    echo                
+    echo " stopping service running on port -> $INCOMING_PORT"    
+    ps -ef | grep "ssh" | grep 'localhost' | grep "$INCOMING_PORT" | grep -v "grep" | awk '{print $2}' | xargs -I{} kill -9 {}   
+    echo " Exitting expose_port"    
+    exit                     
+}
+
+trap "signal_handler" INT            # Set up SIGINT trap to call function.
+echo "$HLP"
+printf " "
+while [ 1 ]
+do
+    sleep 1
+done  
+
