@@ -8,12 +8,14 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 
+echo 
+
 DOMAIN_NAME="$1"
 DOMAIN_CONF="${DOMAIN_NAME}.conf"
 DOCUMENT_ROOT="/var/www/${DOMAIN_NAME}"
 HTML_PAGE="$DOCUMENT_ROOT/index.html"
 
-a2dissite $DOMAIN_CONF 2> /dev/null 
+a2dissite $DOMAIN_CONF &> /dev/null 
 service apache2 restart
 
 rm -rf "/etc/apache2/sites-available/$DOMAIN_CONF"
@@ -21,7 +23,7 @@ rm -rf $DOCUMENT_ROOT
 rm -rf $HTML_PAGE
 
 cd /etc/apache2/sites-available/
-ls 000-default.conf 2> /dev/null
+ls 000-default.conf &> /dev/null
 if [ $? -ne 0 ]; then
     echo
     echo "error: 000-default.conf not available"
@@ -29,7 +31,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-a2dissite 000-default.conf
+a2dissite 000-default.conf &> /dev/null
 if [ $? -ne 0 ]; then
     echo
     echo "error: unable to disable  000-default.conf"
@@ -104,7 +106,7 @@ if [ $? -ne 0 ]; then
 fi
 
 
-a2ensite "${DOMAIN_NAME}.conf"
+a2ensite "${DOMAIN_NAME}.conf" &> /dev/null
 
 if [ $? -ne 0 ]; then
     echo
@@ -113,7 +115,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "[ STATUS ] remove stale configuration"
+echo "[ STATUS  ] remove stale configuration"
 sed -i "/127.0.0.1 $DOMAIN_NAME/d" /etc/hosts
 
 echo "127.0.0.1 $DOMAIN_NAME" >> /etc/hosts
@@ -135,4 +137,17 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-
+echo "[ SUCCESS ] Website Is Configured for ( $DOMAIN_NAME )"
+echo 
+echo 
+echo " ############## WEBSITE HOSTING DETAILS ##############" 
+echo 
+echo 
+echo "       Website Config -> /etc/apache2/sites-available/$DOMAIN_CONF"
+echo 
+echo "       Document Root  -> ${DOCUMENT_ROOT}/"
+echo 
+echo 
+echo " ############## WEBSITE HOSTING DETAILS ##############" 
+echo 
+echo 
