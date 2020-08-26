@@ -24,4 +24,9 @@ echo " [ STATUS ] Email Address ( $EMAIL_ADDRESS )"
 
 certbot --apache -m $EMAIL_ADDRESS -d $DOMAIN_NAME --non-interactive --agree-tos
 
+echo " [ STATUS ] Enabling SSL Certificate Auto-Renew"
+
+CRON_JOB_ENTRY="0 1 * * * /usr/bin/certbot renew & > /dev/null"
+(crontab -l ; echo "$CRON_JOB_ENTRY") | sort - | uniq - | crontab -
+
 echo " [ STATUS ] Generated Certificates Are Located @ (/etc/letsencrypt/archive) (/etc/letsencrypt/live)"
